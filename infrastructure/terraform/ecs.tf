@@ -134,7 +134,7 @@ resource "aws_ecs_task_definition" "api" {
     Name = "${var.project_name}-api-task"
   }
 }
-
+ 
 # ECS Task Definition - Client
 resource "aws_ecs_task_definition" "client" {
   family                   = "${var.project_name}-client"
