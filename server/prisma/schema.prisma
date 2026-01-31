@@ -82,6 +82,8 @@ model Message {
   replies   Message[] @relation("MessageReply")
 
   @@map("messages")
+  @@index([roomId, createdAt])
+  @@index([senderId])
 }
 
 model Notification {

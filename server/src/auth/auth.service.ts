@@ -28,6 +28,9 @@ export class AuthService {
     }
 
     const payload = { email: user.email, sub: user.id };
+    const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+    console.log('Signing JWT with secret:', secret.substring(0, 10) + '...');
+    
     return {
       access_token: this.jwtService.sign(payload),
       user: {

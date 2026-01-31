@@ -1,15 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
-      credentials: true,
-    },
-  });
+  const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -20,19 +16,20 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger API documentation
-  const config = new DocumentBuilder()
-    .setTitle('Chat App API')
-    .setDescription('Real-time chat application API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // CORS configuration
+  app.enableCors({
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true,
+  });
 
-  const port = process.env.PORT || 3001;
+  // Global prefix
+  app.setGlobalPrefix('api');
+
+  const port = configService.get('PORT') || 3001;
   await app.listen(port);
+  
   console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📚 API docs available at http://localhost:${port}/api/docs`);
+  console.log(`📚 API available at http://localhost:${port}/api`);
 }
+
 bootstrap();
