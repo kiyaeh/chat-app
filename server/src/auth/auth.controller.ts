@@ -1,39 +1,35 @@
-import { Controller, Post, Body, UseGuards, Request, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { LocalAuthGuard } from './guards/local-auth.guard';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { Controller, Post, Body, Inject, UseGuards, Request, Get } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
-@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(@Inject('AUTH_SERVICE') private authClient: ClientProxy) {}
 
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User successfully registered' })
   @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  register(@Body() body: { email: string; username: string; password: string }) {
+    return this.authClient.send('auth.register', body);
   }
 
-  @ApiOperation({ summary: 'Login user' })
-  @ApiResponse({ status: 200, description: 'User successfully logged in' })
   @Post('login')
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  login(@Body() body: { email: string; password: string }) {
+    return this.authClient.send('auth.login', body);
   }
 
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'User profile retrieved' })
+  @Post('refresh')
+  refreshTokens(@Body() body: { refreshToken: string }) {
+    return this.authClient.send('auth.refresh', body);
+  }
+
+  @Post('logout')
   @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  async getProfile(@Request() req) {
-    return {
-      id: req.user.userId,
-      email: req.user.email,
-      username: req.user.username,
-    };
+  logout(@Request() req) {
+    return this.authClient.send('auth.logout', { userId: req.user.id });
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Request() req) {
+    return { user: req.user };
   }
 }

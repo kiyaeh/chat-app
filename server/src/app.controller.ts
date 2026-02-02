@@ -7,15 +7,6 @@ export class AppController {
 
   @Get()
   getHello(): string {
-    return 'Chat API is running!';
-  }
-
-  @Get('health')
-  getHealth() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      service: 'chat-api',
-    };
+    return this.appService.getHello();
   }
 }

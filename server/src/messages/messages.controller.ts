@@ -1,78 +1,54 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  UseGuards,
-  Request,
-  Query,
-} from '@nestjs/common';
-import { MessagesService } from './messages.service';
-import { CreateMessageDto } from './dto/create-message.dto';
-import { UpdateMessageDto } from './dto/update-message.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, Inject } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { MessageType } from '../shared/types';
 
 @Controller('messages')
-@UseGuards(JwtAuthGuard)
-export class MessagesController {
-  constructor(private readonly messagesService: MessagesService) {}
+export class MessageController {
+  constructor(@Inject('MESSAGE_SERVICE') private messageClient: ClientProxy) {}
+
+  @Get(':roomId')
+  @UseGuards(JwtAuthGuard)
+  getRoomMessages(
+    @Param('roomId') roomId: string, 
+    @Req() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.messageClient.send('message.getRoomMessages', { 
+      roomId, 
+      userId: req.user.id,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 50
+    });
+  }
 
   @Post()
-  create(@Body() createMessageDto: CreateMessageDto, @Request() req) {
-    return this.messagesService.create(createMessageDto, req.user.userId);
+  @UseGuards(JwtAuthGuard)
+  createMessage(@Req() req, @Body() body: { roomId: string; content: string; type?: MessageType; replyToId?: string }) {
+    return this.messageClient.send('message.create', { 
+      senderId: req.user.id, 
+      type: body.type || MessageType.TEXT,
+      ...body 
+    });
   }
 
-  @Get('room/:roomId')
-  findByRoom(
-    @Param('roomId') roomId: string,
-    @Request() req,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.messagesService.findByRoom(
-      roomId,
-      req.user.userId,
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 50,
-    );
-  }
-
-  @Get('search/:roomId')
-  search(
-    @Param('roomId') roomId: string,
-    @Query('q') query: string,
-    @Request() req,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.messagesService.search(
-      roomId,
-      query,
-      req.user.userId,
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 20,
-    );
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string, @Request() req) {
-    return this.messagesService.findOne(id, req.user.userId);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateMessageDto: UpdateMessageDto,
-    @Request() req,
-  ) {
-    return this.messagesService.update(id, updateMessageDto, req.user.userId);
+  @Put(':id')
+  @UseGuards(JwtAuthGuard)
+  updateMessage(@Param('id') messageId: string, @Req() req, @Body() body: { content: string }) {
+    return this.messageClient.send('message.update', { 
+      messageId, 
+      userId: req.user.id, 
+      content: body.content 
+    });
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Request() req) {
-    return this.messagesService.remove(id, req.user.userId);
+  @UseGuards(JwtAuthGuard)
+  deleteMessage(@Param('id') messageId: string, @Req() req) {
+    return this.messageClient.send('message.delete', { 
+      messageId, 
+      userId: req.user.id 
+    });
   }
 }

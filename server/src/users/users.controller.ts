@@ -1,37 +1,39 @@
-import { Controller, Get, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, Get, Put, Body, Param, Query, Inject, UseGuards, Req } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { UserStatus } from '../shared/types';
 
-@ApiTags('Users')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('users')
-export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+export class UserController {
+  constructor(@Inject('USER_SERVICE') private userClient: ClientProxy) {}
 
-  @ApiOperation({ summary: 'Get all users' })
-  @Get()
-  findAll() {
-    return this.usersService.findAll();
-  }
-
-  @ApiOperation({ summary: 'Get current user profile' })
   @Get('me')
-  getProfile(@Request() req) {
-    return this.usersService.findById(req.user.id);
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Req() req) {
+    return this.userClient.send('user.findById', { id: req.user.id });
   }
 
-  @ApiOperation({ summary: 'Get user by ID' })
+  @Put('me')
+  @UseGuards(JwtAuthGuard)
+  updateProfile(@Req() req, @Body() body: { username?: string; avatar?: string }) {
+    return this.userClient.send('user.updateProfile', { id: req.user.id, ...body });
+  }
+
+  @Put('me/status')
+  @UseGuards(JwtAuthGuard)
+  updateStatus(@Req() req, @Body() body: { status: UserStatus }) {
+    return this.userClient.send('user.updateStatus', { id: req.user.id, status: body.status });
+  }
+
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  searchUsers(@Query('q') query: string, @Req() req) {
+    return this.userClient.send('user.search', { query, currentUserId: req.user.id });
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
-  }
-
-  @ApiOperation({ summary: 'Update current user profile' })
-  @Patch('me')
-  updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(req.user.id, updateUserDto);
+  @UseGuards(JwtAuthGuard)
+  getUserById(@Param('id') id: string) {
+    return this.userClient.send('user.findById', { id });
   }
 }

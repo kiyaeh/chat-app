@@ -4,5 +4,61 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true
+  },
+  "projects": {
+    "server": {
+      "type": "application",
+      "root": "",
+      "entryFile": "main",
+      "sourceRoot": "src",
+      "compilerOptions": {
+        "tsConfigPath": "tsconfig.json"
+      }
+    },
+    "auth-microservice": {
+      "type": "application",
+      "root": "apps/auth-microservice",
+      "entryFile": "main",
+      "sourceRoot": "apps/auth-microservice/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/auth-microservice/tsconfig.app.json"
+      }
+    },
+    "user-microservice": {
+      "type": "application",
+      "root": "apps/user-microservice",
+      "entryFile": "main",
+      "sourceRoot": "apps/user-microservice/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/user-microservice/tsconfig.app.json"
+      }
+    },
+    "room-microservice": {
+      "type": "application",
+      "root": "apps/room-microservice",
+      "entryFile": "main",
+      "sourceRoot": "apps/room-microservice/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/room-microservice/tsconfig.app.json"
+      }
+    },
+    "message-microservice": {
+      "type": "application",
+      "root": "apps/message-microservice",
+      "entryFile": "main",
+      "sourceRoot": "apps/message-microservice/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/message-microservice/tsconfig.app.json"
+      }
+    },
+    "websocket-service": {
+      "type": "application",
+      "root": "apps/websocket-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/websocket-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/websocket-service/tsconfig.app.json"
+      }
+    }
   }
 }

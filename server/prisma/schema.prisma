@@ -4,20 +4,21 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  avatar    String?
-  isOnline  Boolean  @default(false)
-  lastSeen  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  email        String     @unique
+  username     String     @unique
+  password     String
+  avatar       String?
+  refreshToken String?
+  status       UserStatus @default(OFFLINE)
+  lastSeen     DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  // Relations
   sentMessages     Message[]      @relation("MessageSender")
   roomMemberships  RoomMember[]
   createdRooms     Room[]         @relation("RoomCreator")
@@ -35,7 +36,6 @@ model Room {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
   creator   User         @relation("RoomCreator", fields: [creatorId], references: [id])
   creatorId String
   members   RoomMember[]
@@ -49,7 +49,6 @@ model RoomMember {
   role     MemberRole @default(MEMBER)
   joinedAt DateTime   @default(now())
 
-  // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
   room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -70,13 +69,11 @@ model Message {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  // Relations
   sender   User   @relation("MessageSender", fields: [senderId], references: [id])
   senderId String
   room     Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
   roomId   String
 
-  // Self-relation for replies
   replyTo   Message?  @relation("MessageReply", fields: [replyToId], references: [id])
   replyToId String?
   replies   Message[] @relation("MessageReply")
@@ -94,11 +91,17 @@ model Notification {
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
 
-  // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
   @@map("notifications")
+}
+
+enum UserStatus {
+  ONLINE
+  AWAY
+  BUSY
+  OFFLINE
 }
 
 enum RoomType {
