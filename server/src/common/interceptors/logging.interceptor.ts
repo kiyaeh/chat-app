@@ -2,7 +2,6 @@ import {
   Injectable,
   NestInterceptor,
   ExecutionContext,
-  CallHandler,
   Logger,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
@@ -13,23 +12,23 @@ import { Request, Response } from 'express';
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(LoggingInterceptor.name);
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: any): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
-    const { method, url, ip } = request;
-    const userAgent = request.get('User-Agent') || '';
-    const now = Date.now();
+    const startTime = Date.now();
 
     return next.handle().pipe(
       tap(() => {
-        const { statusCode } = response;
-        const contentLength = response.get('content-length');
-        const responseTime = Date.now() - now;
+        const duration = Date.now() - startTime;
+        const statusCode = response.statusCode;
+        const method = request.method;
+        const url = request.url;
+        const userAgent = request.get('user-agent');
 
         this.logger.log(
-          `${method} ${url} ${statusCode} ${contentLength} - ${userAgent} ${ip} +${responseTime}ms`,
+          `${method} ${url} - ${statusCode} - ${duration}ms - ${userAgent}`
         );
-      }),
+      })
     );
   }
 }

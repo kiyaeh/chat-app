@@ -1,21 +1,13 @@
-services:
-  # Infrastructure
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+version: '3.8'
 
+services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:14-alpine
+    container_name: chat-app-postgres
     environment:
-      POSTGRES_DB: chatapp
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 12345678
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chat_app
     ports:
       - "5432:5432"
     volumes:
@@ -24,102 +16,51 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
-  # Microservices
-  auth-microservice:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.auth
-    environment:
-      DATABASE_URL: postgresql://postgres:12345678@postgres:5432/chatapp?schema=public
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  user-microservice:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.user
-    environment:
-      DATABASE_URL: postgresql://postgres:12345678@postgres:5432/chatapp?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  room-microservice:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.room
-    environment:
-      DATABASE_URL: postgresql://postgres:12345678@postgres:5432/chatapp?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  message-microservice:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.message
-    environment:
-      DATABASE_URL: postgresql://postgres:12345678@postgres:5432/chatapp?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  websocket-service:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.websocket
+  redis:
+    image: redis:7-alpine
+    container_name: chat-app-redis
     ports:
-      - "3007:3007"
-    environment:
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production
-      PORT: 3007
-    depends_on:
-      - redis
-    restart: unless-stopped
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Main HTTP Gateway
-  api-gateway:
+  server:
     build:
       context: ./server
-      dockerfile: Dockerfile.gateway
+      dockerfile: Dockerfile
+    container_name: chat-app-server
     ports:
       - "3000:3000"
     environment:
+      NODE_ENV: development
       PORT: 3000
+      JWT_SECRET: your-secret-key-change-in-production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/chat_app
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: chat_app
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      CORS_ORIGIN: http://localhost:4000
     depends_on:
-      - redis
-      - auth-microservice
-      - user-microservice
-      - room-microservice
-      - message-microservice
-      - websocket-service
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server/src:/app/src
+      - ./server/uploads:/app/uploads
+    command: npm run start:dev
 
 volumes:
   postgres_data:
+  redis_data:

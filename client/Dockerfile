@@ -1,29 +1,41 @@
-FROM node:20-alpine AS base
+# Build stage
+FROM node:18-alpine AS builder
+
 WORKDIR /app
+
 COPY package*.json ./
 
-FROM base AS deps
 RUN npm ci
 
-FROM base AS dev
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-EXPOSE 3000
-CMD ["npm", "run", "dev"]
 
-FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
 RUN npm run build
 
-FROM node:18-alpine AS production
+# Production stage
+FROM node:18-alpine
+
 WORKDIR /app
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-COPY --from=build /app/public ./public
-COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-USER nextjs
-EXPOSE 3000
-ENV PORT 3000
-CMD ["node", "server.js"]
+
+RUN apk add --no-cache dumb-init
+
+COPY package*.json ./
+
+RUN npm ci --only=production && npm cache clean --force
+
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:4000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["npm", "start"]

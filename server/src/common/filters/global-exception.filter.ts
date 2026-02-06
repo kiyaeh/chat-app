@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -17,28 +18,38 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+    let errors: any = null;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
+      
+      if (typeof exceptionResponse === 'object') {
+        const objResponse = exceptionResponse as any;
+        message = objResponse.message || exception.message;
+        errors = objResponse.error;
+      } else {
+        message = exceptionResponse as string;
+      }
+    } else if (exception instanceof Error) {
+      message = exception.message;
+    }
 
     const errorResponse = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
-      message: typeof message === 'string' ? message : (message as any).message,
+      message,
+      ...(errors && { errors }),
     };
 
     this.logger.error(
       `${request.method} ${request.url}`,
       JSON.stringify(errorResponse),
-      exception instanceof Error ? exception.stack : 'Unknown error',
+      exception instanceof Error ? exception.stack : 'Unknown error'
     );
 
     response.status(status).json(errorResponse);

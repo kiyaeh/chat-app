@@ -65,6 +65,7 @@ model Message {
   fileUrl   String?
   fileName  String?
   fileSize  Int?
+  fileMimeType String?
   isEdited  Boolean     @default(false)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -89,6 +90,8 @@ model Notification {
   title     String
   message   String
   isRead    Boolean          @default(false)
+  sent      Boolean          @default(false)
+  data      Json?
   createdAt DateTime         @default(now())
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -121,6 +124,9 @@ enum MessageType {
   TEXT
   IMAGE
   FILE
+  DOCUMENT
+  VIDEO
+  AUDIO
   SYSTEM
 }
 
@@ -129,4 +135,6 @@ enum NotificationType {
   MENTION
   ROOM_INVITE
   SYSTEM
+  EMAIL
+  PUSH
 }

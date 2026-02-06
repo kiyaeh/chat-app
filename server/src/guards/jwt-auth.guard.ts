@@ -1,37 +1,46 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Inject } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Request } from 'express';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(@Inject('AUTH_SERVICE') private authClient: ClientProxy) {}
+  constructor(private jwtService: JwtService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const token = this.extractTokenFromHeader(request);
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<Request>();
+    const authHeader = request.headers.authorization;
 
+    if (!authHeader) {
+      throw new UnauthorizedException('No authorization header provided');
+    }
+
+    const token = this.extractToken(authHeader);
     if (!token) {
-      throw new UnauthorizedException('Token not found');
+      throw new UnauthorizedException('Invalid authorization header format');
     }
 
     try {
-      const result = await firstValueFrom(
-        this.authClient.send('auth.validate', { token })
-      );
-
-      if (!result.valid) {
-        throw new UnauthorizedException('Invalid token');
-      }
-
-      request.user = result.user;
+      const payload = this.jwtService.verify(token);
+      (request as any).user = payload;
       return true;
     } catch (error) {
-      throw new UnauthorizedException('Token validation failed');
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Token has expired');
+      }
+      throw new UnauthorizedException('Invalid token');
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : undefined;
+  private extractToken(authHeader: string): string | null {
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return null;
+    }
+    return parts[1];
   }
 }

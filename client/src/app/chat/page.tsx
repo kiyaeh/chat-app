@@ -1,254 +1,179 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiService } from '@/services/api';
-
-interface Room {
-  id: string;
-  name: string;
-  type: string;
-  members: any[];
-  messages: any[];
-  _count: { messages: number };
-}
-
-interface Message {
-  id: string;
-  content: string;
-  type: string;
-  createdAt: string;
-  sender: {
-    id: string;
-    username: string;
-    avatar?: string;
-  };
-}
+import { useAuthStore, useChatStore } from '@/store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function ChatPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [showCreateRoom, setShowCreateRoom] = useState(false);
-  const [newRoomName, setNewRoomName] = useState('');
   const router = useRouter();
+  const { isAuthenticated, user, logout, initAuth } = useAuthStore();
+  const { rooms, currentRoom, messages, fetchRooms, selectRoom, sendMessage, createRoom } = useChatStore();
+  const [messageInput, setMessageInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [newRoom, setNewRoom] = useState({ name: '', description: '' });
 
   useEffect(() => {
-    checkAuthAndLoadRooms();
-  }, []);
+    initAuth();
+  }, [initAuth]);
 
-  const checkAuthAndLoadRooms = async () => {
-    try {
-      // First check if user is authenticated
-      await apiService.getProfile();
-      // If successful, load rooms
-      await loadRooms();
-    } catch (error) {
-      console.error('Authentication failed:', error);
-      router.push('/');
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    } else {
+      fetchRooms();
     }
-  };
+  }, [isAuthenticated, router, fetchRooms]);
 
-  const loadRooms = async () => {
-    try {
-      const roomsData = await apiService.getRooms();
-      setRooms(roomsData);
-      if (roomsData.length > 0 && !selectedRoom) {
-        setSelectedRoom(roomsData[0]);
-        loadMessages(roomsData[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to load rooms:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!isAuthenticated) return null;
 
-  const loadMessages = async (roomId: string) => {
-    try {
-      const messagesData = await apiService.getMessages(roomId);
-      setMessages(messagesData.messages || []);
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    }
-  };
-
-  const createRoom = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoomName.trim()) return;
-
-    try {
-      const room = await apiService.createRoom({
-        name: newRoomName,
-        type: 'GROUP',
-      });
-      setRooms([...rooms, room]);
-      setNewRoomName('');
-      setShowCreateRoom(false);
-    } catch (error) {
-      console.error('Failed to create room:', error);
-    }
+    if (!messageInput.trim() || !currentRoom) return;
+    await sendMessage(messageInput);
+    setMessageInput('');
   };
 
-  const selectRoom = (room: Room) => {
-    setSelectedRoom(room);
-    loadMessages(room.id);
+  const handleCreateRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRoom.name.trim()) return;
+    await createRoom({ name: newRoom.name, description: newRoom.description, type: 'GROUP' });
+    setNewRoom({ name: '', description: '' });
+    setShowCreateRoom(false);
   };
 
-  const logout = () => {
-    apiService.removeToken();
-    router.push('/');
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
-  }
+  const filteredRooms = rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="h-screen flex bg-gray-50">
       {/* Sidebar */}
-      <div className="w-1/4 bg-white border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h1 className="text-xl font-semibold">Chat Rooms</h1>
-            <button
-              onClick={logout}
-              className="text-sm text-red-600 hover:text-red-800"
-            >
-              Logout
-            </button>
-          </div>
-          <button
-            onClick={() => setShowCreateRoom(true)}
-            className="mt-2 w-full bg-indigo-600 text-white px-3 py-2 rounded-md text-sm hover:bg-indigo-700"
-          >
-            Create Room
-          </button>
-        </div>
-
-        <div className="overflow-y-auto">
-          {rooms.map((room) => (
-            <div
-              key={room.id}
-              onClick={() => selectRoom(room)}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-200' : ''
-              }`}
-            >
-              <div className="font-medium">{room.name}</div>
-              <div className="text-sm text-gray-500">
-                {room._count.messages} messages • {room.members.length} members
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                {user?.username?.[0]?.toUpperCase()}
+              </div>
+              <div>
+                <h1 className="font-bold text-gray-900">{user?.username}</h1>
+                <p className="text-xs text-gray-500">Online</p>
               </div>
             </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              ↪️
+            </Button>
+          </div>
+          <Button 
+            onClick={() => setShowCreateRoom(!showCreateRoom)} 
+            className="w-full"
+            size="sm"
+          >
+            + New Room
+          </Button>
+        </div>
+
+        {/* Create Room Form */}
+        {showCreateRoom && (
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <form onSubmit={handleCreateRoom} className="space-y-3">
+              <Input
+                placeholder="Room name"
+                value={newRoom.name}
+                onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+              />
+              <Input
+                placeholder="Description"
+                value={newRoom.description}
+                onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" className="flex-1">Create</Button>
+                <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={() => setShowCreateRoom(false)}>Cancel</Button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="p-4 border-b border-gray-200">
+          <Input
+            placeholder="Search rooms..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Rooms List */}
+        <div className="flex-1 overflow-y-auto">
+          {filteredRooms.map(room => (
+            <button
+              key={room.id}
+              onClick={() => selectRoom(room.id)}
+              className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                currentRoom?.id === room.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''
+              }`}
+            >
+              <p className="font-semibold text-gray-900 text-sm">{room.name}</p>
+              {room.description && <p className="text-xs text-gray-500 truncate">{room.description}</p>}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* Chat Area */}
       <div className="flex-1 flex flex-col">
-        {selectedRoom ? (
+        {currentRoom ? (
           <>
             {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 p-4">
-              <h2 className="text-lg font-semibold">{selectedRoom.name}</h2>
-              <p className="text-sm text-gray-500">{selectedRoom.members.length} members</p>
+            <div className="bg-white border-b border-gray-200 px-6 py-4">
+              <h2 className="text-xl font-bold text-gray-900">{currentRoom.name}</h2>
+              {currentRoom.description && <p className="text-sm text-gray-600">{currentRoom.description}</p>}
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
-                <div key={message.id} className="flex space-x-3">
-                  <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white text-sm">
-                    {message.sender.username[0].toUpperCase()}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.map(msg => (
+                <div key={msg.id} className="flex gap-3">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    {msg.userId[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{message.sender.username}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(message.createdAt).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <p className="text-gray-900">{message.content}</p>
+                    <p className="text-xs font-semibold text-gray-900">{msg.userId}</p>
+                    <p className="text-sm text-gray-700 mt-1">{msg.content}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Message Input */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+            {/* Input */}
+            <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-4 bg-white">
+              <div className="flex gap-3">
+                <Input
                   placeholder="Type a message..."
-                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      // Handle send message
-                      console.log('Send message:', newMessage);
-                      setNewMessage('');
-                    }
-                  }}
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  className="flex-1"
                 />
-                <button
-                  onClick={() => {
-                    console.log('Send message:', newMessage);
-                    setNewMessage('');
-                  }}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                >
-                  Send
-                </button>
+                <Button type="submit" size="sm">Send</Button>
               </div>
-            </div>
+            </form>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-gray-500">Select a room to start chatting</p>
+            <div className="text-center">
+              <p className="text-gray-500 text-lg">Select a room to start chatting</p>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Create Room Modal */}
-      {showCreateRoom && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">Create New Room</h3>
-            <form onSubmit={createRoom}>
-              <input
-                type="text"
-                value={newRoomName}
-                onChange={(e) => setNewRoomName(e.target.value)}
-                placeholder="Room name"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <div className="flex space-x-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700"
-                >
-                  Create
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateRoom(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
